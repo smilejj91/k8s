@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tmax-grafana-pv
+  namespace: monitoring
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: 192.168.2.135
+    path: /home/share/tmax-nfs/tmax-grafana

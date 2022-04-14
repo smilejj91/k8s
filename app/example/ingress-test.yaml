@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: test-k8s.tmaxos.net # pre-requisite : DNS setting 
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: test-service
+            port:
+              number: 80

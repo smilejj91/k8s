@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmax-grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tmax-grafana
+  template:
+    metadata:
+      name: tmax-grafana
+      labels:
+        app: tmax-grafana
+    spec:
+      containers:
+      - name: tmax-grafana
+        image: grafana/grafana
+        resources:
+          requests:
+            memory: 1000Mi
+            cpu: 2
+          limits:
+            memory: 1000Mi
+            cpu: 2
+        ports:
+        - name: tmax-grafana
+          containerPort: 3000
+        volumeMounts:
+        - mountPath: /var/lib/grafana
+          name: tmax-grafana-volume
+          subPath: grafana
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "tmax123"
+      volumes:
+      - name: tmax-grafana-volume
+        persistentVolumeClaim:
+          claimName: tmax-grafana-pvc

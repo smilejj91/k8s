@@ -1,0 +1,10 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: test-service
+spec:
+  selector:
+    app: test
+  type: LoadBalancer
+  ports:
+    - port: 80 # Default port for image

@@ -1,0 +1,15 @@
+## Backend : prometheus-server
+## To expose prometheus pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: tmax-prometheus-service
+  namespace: monitoring
+  annotations:
+      prometheus.io/scrape: 'true'
+      prometheus.io/port:   '9090'
+spec:
+  selector:
+    app: tmax-prometheus
+  ports:
+    - port: 9090

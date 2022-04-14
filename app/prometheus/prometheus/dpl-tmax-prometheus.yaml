@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmax-prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tmax-prometheus
+  template:
+    metadata:
+      labels:
+        app: tmax-prometheus
+    spec:
+      containers:
+        - name: tmax-prometheus
+          image: prom/prometheus
+          resources:
+            requests:
+              cpu: 1
+              memory: 1000Mi
+            limits:
+              cpu: 1
+              memory: 1000Mi
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus/"
+            - "--storage.tsdb.retention=30d"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: tmax-prometheus-config-volume
+              mountPath: /etc/prometheus/
+            - mountPath: /prometheus/
+              name: tmax-prometheus-storage-volume
+              subPath: prometheus
+      volumes:
+        - name: tmax-prometheus-config-volume
+          configMap:
+            defaultMode: 420
+            name: tmax-prometheus-configmap
+        - name: tmax-prometheus-storage-volume
+          persistentVolumeClaim:
+            claimName: tmax-prometheus-pvc
