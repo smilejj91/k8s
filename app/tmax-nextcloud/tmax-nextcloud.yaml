@@ -1,0 +1,134 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tmax-nextcloud-ingress
+  namespace: osinfra
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nextcloud.tmaxos.net
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: tmax-nextcloud-service
+            port:
+              number: 80
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: tmax-nextcloud-service
+  namespace: osinfra
+spec:
+  type: NodePort
+  selector:
+    app: tmax-nextcloud
+  ports:
+    - port: 80 # Default port for image
+
+---
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: tmax-nextcloud-pvc
+  namespace: osinfra
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tmax-nextcloud-pv
+  namespace: osinfra
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  nfs:
+    server: 192.168.2.135
+    path: /home/share/tmax-nfs/tmax-nextcloud
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmax-nextcloud
+  namespace: osinfra
+spec:
+  selector:
+    matchLabels:
+      app: tmax-nextcloud
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: tmax-nextcloud
+    spec:
+      containers:
+      - name: tmax-nextcloud
+        image: nextcloud:23.0.3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: 0.5 
+          limits:
+            memory: "128Mi"
+            cpu: 0.5
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: /var/www/html
+          name: tmax-nextcloud-volume
+          subPath: nextcloud
+        env:
+        - name: MYSQL_PASSWORD
+          value: tmaxos123!
+        - name: MYSQL_DATABASE
+          value: nextcloud
+        - name: MYSQL_USER
+          value: nextcloud
+        - name: MYSQL_HOST
+          value: 127.0.0.1
+      - name: tmax-nextcloud-db
+        image: mariadb
+        args: ["--transaction-isolation=READ-COMMITTED", "--binlog-format=ROW"]
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: 0.5
+          limits:
+            memory: "128Mi"
+            cpu: 0.5
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: tmax-nextcloud-volume
+          subPath: db
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: tmaxos123!
+        - name: MYSQL_PASSWORD
+          value: tmaxos123!
+        - name: MYSQL_DATABASE
+          value: nextcloud
+        - name: MYSQL_USER
+          value: nextcloud
+      volumes:
+      - name: tmax-nextcloud-volume
+        persistentVolumeClaim:
+          claimName: tmax-nextcloud-pvc
