@@ -1,0 +1,81 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: tmax-elasticsearch-pvc
+  namespace: tmaxos-infra
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: ssd-ceph-fs
+  volumeMode: Filesystem
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: tmax-elasticsearch-service
+  namespace: tmaxos-infra
+spec:
+  ports:
+    - name: external
+      protocol: TCP
+      port: 9200
+      targetPort: 9200
+    - name: internal
+      protocol: TCP
+      port: 9300
+      targetPort: 9300
+  selector:
+    app: tmax-elasticsearch
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: tmax-elasticsearch
+  namespace: tmaxos-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tmax-elasticsearch
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: tmax-elasticsearch
+    spec:
+      volumes:
+        - name: tmax-elasticsearch-volume
+          persistentVolumeClaim:
+            claimName: tmax-elasticsearch-pvc
+      containers:
+        - resources:
+            limits:
+              cpu: '1'
+              memory: 1Gi
+            requests:
+              cpu: '1'
+              memory: 1Gi
+          name: tmax-elasticsearch
+          env:
+            - name: discovery.type
+              value: single-node
+          ports:
+            - name: external
+              containerPort: 9200
+              protocol: TCP
+            - name: internal
+              containerPort: 9300
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: tmax-elasticsearch-volume
+              mountPath: /usr/share/elasticsearch/data
+              subPath: data
+          image: 'docker.elastic.co/elasticsearch/elasticsearch:7.15.2'

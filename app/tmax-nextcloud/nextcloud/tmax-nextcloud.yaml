@@ -1,0 +1,141 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: tmax-nextcloud-pvc
+  namespace: tmaxos-infra
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 950Gi
+  storageClassName: ssd-ceph-fs
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  name: tmax-nextcloud-service
+  namespace: tmaxos-infra
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+  selector:
+    app: tmax-nextcloud
+  type: LoadBalancer
+
+---
+
+kind: Secret
+apiVersion: v1
+metadata:
+  name: tmax-nextcloud-secret
+  namespace: tmaxos-infra
+data:
+  MYSQL_DATABASE: nextcloud
+  MYSQL_HOST: 127.0.0.1
+  MYSQL_PASSWORD: 1234
+  MYSQL_ROOT_PASSWORD: 1234
+  MYSQL_USER: nextcloud
+type: Opaque
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: tmax-nextcloud
+  namespace: tmaxos-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tmax-nextcloud
+  template:
+    metadata:
+      labels:
+        app: tmax-nextcloud
+    spec:
+      volumes:
+        - name: tmax-nextcloud-volume
+          persistentVolumeClaim:
+            claimName: tmax-nextcloud-pvc
+      containers:
+        - resources:
+            limits:
+              cpu: '1'
+              memory: 2Gi
+            requests:
+              cpu: '1'
+              memory: 2Gi
+          name: tmax-nextcloud
+          env:
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_USER
+            - name: MYSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_HOST
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: tmax-nextcloud-volume
+              mountPath: /var/www/html
+              subPath: nextcloud
+          image: 'nextcloud:23.0.3'
+        - resources:
+            limits:
+              cpu: '1'
+              memory: 2Gi
+            requests:
+              cpu: '1'
+              memory: 2Gi
+          name: tmax-next-cloud-db
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: tmax-nextcloud-secret
+                  key: MYSQL_USER
+          volumeMounts:
+            - name: tmax-nextcloud-volume
+              mountPath: /var/lib/mysql
+              subPath: nextcloud-db
+          image: mariadb
+          args:
+            - '--transaction-isolation=READ-COMMITTED'
+            - '--binlog-format=ROW'
