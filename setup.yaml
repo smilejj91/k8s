@@ -1,0 +1,181 @@
+- hosts: all
+  become: yes
+  tasks:
+   - name: Install required system packages
+     apt:
+       name:
+         - apt-transport-https
+         - ca-certificates 
+         - curl
+         - gnupg
+         - lsb-release
+       state: present
+       update_cache: true
+
+   - name: Add Docker GPG apt key
+     apt_key: 
+       url: https://download.docker.com/linux/ubuntu/gpg
+       state: present
+       keyring: /etc/apt/trusted.gpg.d/docker-archive-keyring.gpg
+  
+   - name: Add Docker Repository
+     apt_repository:
+       repo: deb https://download.docker.com/linux/ubuntu jammy stable
+       state: present
+       filename: 'docker'
+
+   - name: Install Containerd
+     apt:
+       name:
+         - containerd.io
+       state: present
+       update_cache: true
+
+   - name: Update Containerd configuration
+     shell: |
+       containerd config default > /etc/containerd/config.toml
+       sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+
+   - name: Restart Containerd
+     service:
+       name: containerd
+       enabled: yes
+       state: restarted
+
+   - name: Remove swapfile from /etc/fstab
+     mount:
+       name: swap
+       fstype: swap
+       state: absent
+       
+   - name: Disable swap
+     shell: swapoff -a
+
+   - name: Add kernel module to /etc/modules-load.d/k8s.conf
+     shell:
+       cmd: |
+         cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+         br_netfilter
+         EOF
+
+   - name: Load kernel module
+     shell: |
+       modprobe overlay
+       modprobe br_netfilter
+
+   - name: Add sysctl paramas to /etc/sysctl.d/k8s.conf
+     shell:
+       cmd: |
+         cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+         net.bridge.bridge-nf-call-iptables  = 1
+         net.bridge.bridge-nf-call-ip6tables = 1
+         net.ipv4.ip_forward                 = 1
+         EOF
+
+   - name: Apply sysctl
+     shell: sysctl --system
+
+   - name: Add K8S GPG apt key
+     apt_key: 
+       url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+       state: present
+       keyring: /etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg
+  
+   - name: Add K8S Repository
+     apt_repository:
+       repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+       state: present
+       filename: 'kubernetes'
+
+   - name: Install K8S
+     apt:
+       name:
+         - kubelet
+         - kubeadm
+         - kubectl
+       state: present
+       update_cache: true
+
+   - name: Start systemd-resolved service
+     service:
+       name: systemd-resolved
+       enabled: yes
+       state: started
+  
+   - name: start kubelet
+     service:
+       name: kubelet
+       enabled: yes
+       state: started
+
+   - name: kubectl completion
+     shell: |
+       kubectl completion bash > /etc/bash_completion.d/kubectl
+       echo 'alias k=kubectl' >> ~/.bashrc
+       echo 'complete -F __start_kubectl k' >> ~/.bashrc
+       echo 'kubectl completion setup' >> kubectl_completion_setup.txt
+     args:
+       chdir: $HOME
+       creates: kubectl_completion_setup.txt
+
+- hosts: masters
+  become: yes
+  tasks:
+    - name: initialize the cluster
+      shell: kubeadm init --pod-network-cidr 10.244.0.0/16
+
+    - name: Export KUBECONFIG
+      shell: export KUBECONFIG=/etc/kubernetes/admin.conf 
+    
+    - name: create .kube directory
+      become: yes
+      become_user: root
+      file:
+        path: $HOME/.kube
+        state: directory
+        mode: 0755
+  
+    - name: copy admin.conf to user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        owner: root
+
+    - name: get k8s-version
+      shell: "kubectl version | base64 | tr -d '\n'"
+      register: k8s_version_raw
+
+    - name: set k8s-version 
+      set_fact:
+        k8s_version: "{{ k8s_version_raw.stdout_lines[0] }}"
+    
+    - name: install Pod network
+      become: yes
+      become_user: root
+      shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version="{{ k8s_version }}"" >> pod_network_setup.txt
+      args:
+        chdir: $HOME
+        creates: pod_network_setup.txt
+
+- hosts: masters
+  become: yes
+  gather_facts: false
+  tasks:
+    - name: get join command
+      shell: kubeadm token create --print-join-command 
+      register: join_command_raw
+  
+    - name: set join command
+      set_fact:
+        join_command: "{{ join_command_raw.stdout_lines[0] }}"
+  
+  
+- hosts: nodes
+  become: yes
+  tasks:
+    - name: join cluster
+      shell: "{{ hostvars['master'].join_command }} --ignore-preflight-errors all  >> node_joined.txt"
+      args:
+        chdir: $HOME
+        creates: node_joined.txt
