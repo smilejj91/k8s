@@ -43,10 +43,7 @@
        state: restarted
 
    - name: Remove swapfile from /etc/fstab
-     mount:
-       name: swap
-       fstype: swap
-       state: absent
+     shell: sed -i '/swap/d' /etc/fstab
        
    - name: Disable swap
      shell: swapoff -a
