@@ -23,3 +23,8 @@ $ ansible -m ping all -i hosts
 ```bash
 $ ansible-playbook -i hosts setup.yaml
 ```
+
+5. deploy rook-ceph
+```bash
+$ ansible-playbook -i hosts ceph-setup.yaml
+```
