@@ -4,3 +4,4 @@ master ansible_host=192.168.0.128 ansible_user=root
 [nodes]
 node1 ansible_host=192.168.0.129 ansible_user=root
 node2 ansible_host=192.168.0.130 ansible_user=root
+node3 ansible_host=192.168.0.134 ansible_user=root

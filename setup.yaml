@@ -119,7 +119,10 @@
   become: yes
   tasks:
     - name: initialize the cluster
-      shell: kubeadm init --pod-network-cidr 10.244.0.0/16
+      shell: kubeadm init --pod-network-cidr 10.244.0.0/16 >> kubeadm_init_setup.txt
+      args:
+        chdir: $HOME
+        creates: kubeadm_init_setup.txt
 
     - name: Export KUBECONFIG
       shell: export KUBECONFIG=/etc/kubernetes/admin.conf 
