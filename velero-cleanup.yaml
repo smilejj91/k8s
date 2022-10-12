@@ -1,0 +1,8 @@
+- hosts: masters
+  become: yes
+  tasks:
+   - name: Cleanup Velero
+     shell: |
+       kubectl delete namespace/velero clusterrolebinding/velero
+       kubectl delete crds -l component=velero
+       kubectl delete -f examples/nginx-app/base.yaml

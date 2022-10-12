@@ -1,0 +1,41 @@
+- hosts: masters
+  vars:
+    velero_version: v1.9.2
+    minio_username: amdin
+    minio_password: tmaxos123!
+    minio_address: 192.168.0.18
+    minio_port: 9000
+  become: yes
+  tasks:
+   - name: Download velero
+     shell: "wget https://github.com/vmware-tanzu/velero/releases/download/{{ velero_version }}/velero-{{ velero_version }}-linux-amd64.tar.gz"
+
+   - name: Unzip velero
+     shell: "tar -xvf velero-{{ velero_version }}-linux-amd64.tar.gz"
+
+   - name: Copy velero to /usr/local/bin
+     shell: "cp velero-{{ velero_version }}-linux-amd64/velero /usr/local/bin/velero"
+
+   - name: Create credential to communicate with minio
+     shell:
+       cmd: |
+         cat <<EOF | sudo tee credential-velero
+         [default]
+         aws_access_key_id={{ minio_username }}
+         aws_secret_access_key={{ minio_password }}
+         EOF
+
+   - name: Deploy velero server
+     shell: | 
+       velero install \
+       --provider aws \
+       --plugins velero/velero-plugin-for-aws:v1.0.0 \
+       --bucket velero \
+       --secret-file ./credential-velero \
+       --use-volume-snapshots=false \
+       --use-restic \
+       --default-volumes-to-restic \
+       --backup-location-config region=minio,s3ForcePathStyle="true",s3Url=http://{{ minio_address }}:{{ minio_port }}
+
+   - name: Check velero version
+     shell: velero version
