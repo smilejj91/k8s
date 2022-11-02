@@ -1,10 +1,16 @@
 - hosts: masters
   become: yes
   tasks:
+   - name: Install git
+     apt:
+       name:
+         - git
+       state: present
+       update_cache: true
+
    - name: Clone rook source
      git:
        repo: 'https://github.com/rook/rook.git'
-       single_branch: yes
        dest: /root/rook
        version: release-1.10
 

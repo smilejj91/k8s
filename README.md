@@ -28,6 +28,9 @@ $ ansible-playbook -i hosts k8s-setup.yaml
 5. deploy rook-ceph
 ```bash
 $ ansible-playbook -i hosts ceph-setup.yaml
+
+# get admin initial password
+$ kubectl -n rook-ceph get secret rook-ceph-dashboard-password -o yaml | grep "password:" | awk '{print $2}' | base64 --decode
 ```
 
 6. deploy velero 

@@ -1,7 +1,7 @@
 [masters]
-master ansible_host=192.168.0.128 ansible_user=root
+master ansible_host=192.168.55.153 ansible_user=root
 
 [nodes]
-node1 ansible_host=192.168.0.129 ansible_user=root
-node2 ansible_host=192.168.0.130 ansible_user=root
-node3 ansible_host=192.168.0.134 ansible_user=root
+node01 ansible_host=192.168.55.175 ansible_user=root
+node02 ansible_host=192.168.55.174 ansible_user=root
+node03 ansible_host=192.168.55.232 ansible_user=root

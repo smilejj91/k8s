@@ -1,9 +1,9 @@
 - hosts: masters
   vars:
     velero_version: v1.9.2
-    minio_username: amdin
+    minio_username: admin
     minio_password: tmaxos123!
-    minio_address: 192.168.0.18
+    minio_address: 192.168.55.206
     minio_port: 9000
   become: yes
   tasks:
