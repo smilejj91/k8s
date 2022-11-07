@@ -35,7 +35,7 @@ $ kubectl -n rook-ceph get secret rook-ceph-dashboard-password -o yaml | grep "p
 
 6. deploy velero 
 
-> pre-cond : minio setup [minio-setting](https://github.com/smilejj91/minio-setting)
+> pre-cond : minio setup [minio-setting](https://github.com/smilejj91/devops-setting/tree/main/minio)
 
 ```bash
 $ ansible-playbook -i hosts velero-setup.yaml
