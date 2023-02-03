@@ -1,5 +1,9 @@
 - hosts: all
+  remote_user: normal
   become: yes
+  environment:
+    http_proxy: http://proxy.example.net:3128
+    https_proxy: http://proxy.example.net:3128
   tasks:
    - name: Install required system packages
      apt:
@@ -20,7 +24,7 @@
   
    - name: Add Docker Repository
      apt_repository:
-       repo: deb https://download.docker.com/linux/ubuntu jammy stable
+       repo: deb https://download.docker.com/linux/ubuntu focal stable
        state: present
        filename: 'docker'
 
@@ -31,16 +35,31 @@
        state: present
        update_cache: true
 
+   - name: Set containerd proxy - 1
+     shell : mkdir -p /etc/systemd/system/containerd.service.d
+
+   - name: Set containerd proxy - 2
+     shell:
+       cmd: |
+         cat <<EOF | sudo tee /etc/systemd/system/containerd.service.d/http-proxy.conf
+         [Service]
+         Environment="HTTP_PROXY=http://proxy.example.net:3128"
+         Environment="HTTPS_PROXY=http://proxy.example.net:3128"
+         EOF
+
+   - name: Run systemctl daemon-reload
+     shell: sudo systemctl daemon-reload
+
    - name: Update Containerd configuration
      shell: |
        containerd config default > /etc/containerd/config.toml
        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
 
-   - name: Restart Containerd
-     service:
-       name: containerd
-       enabled: yes
-       state: restarted
+   - name: Run systemctl daemon-reload
+     shell: sudo systemctl daemon-reload
+
+   - name: Run systemctl daemon-reload
+     shell: sudo systemctl restart containerd
 
    - name: Remove swapfile from /etc/fstab
      shell: sed -i '/swap/d' /etc/fstab
@@ -71,6 +90,10 @@
 
    - name: Apply sysctl
      shell: sysctl --system
+
+   - name: Apply ip_foward
+     become_user: root
+     shell: echo 1 > /proc/sys/net/ipv4/ip_forward
 
    - name: Add K8S GPG apt key
      apt_key: 
@@ -116,31 +139,37 @@
        creates: kubectl_completion_setup.txt
 
 - hosts: masters
-  become: yes
+  remote_user: normal
+  environment:
+    http_proxy: http://proxy.example.net:3128
+    https_proxy: http://proxy.example.net:3128
   tasks:
+    - name: get env
+      shell: env >> $HOME/log.txt
+      args:
+        executable: /bin/bash
+
     - name: initialize the cluster
-      shell: kubeadm init --pod-network-cidr 10.244.0.0/16 >> kubeadm_init_setup.txt
+      shell: "sudo -E kubeadm init --pod-network-cidr 10.244.0.0/16 >> kubeadm_init_setup.txt"
       args:
         chdir: $HOME
         creates: kubeadm_init_setup.txt
+        executable: /bin/bash
 
     - name: Export KUBECONFIG
       shell: export KUBECONFIG=/etc/kubernetes/admin.conf 
     
     - name: create .kube directory
       become: yes
-      become_user: root
       file:
         path: $HOME/.kube
         state: directory
         mode: 0755
   
     - name: copy admin.conf to user's kube config
-      copy:
-        src: /etc/kubernetes/admin.conf
-        dest: /root/.kube/config
-        remote_src: yes
-        owner: root
+      shell: |
+        sudo cp  /etc/kubernetes/admin.conf $HOME/.kube/config
+        sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
     - name: get k8s-version
       shell: "kubectl version | base64 | tr -d '\n'"
@@ -151,32 +180,29 @@
         k8s_version: "{{ k8s_version_raw.stdout_lines[0] }}"
     
     - name: install Pod network
-      become: yes
-      become_user: root
       shell: kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml >> pod_network_setup.txt
       args:
         chdir: $HOME
         creates: pod_network_setup.txt
 
     - name: install Metric Server
-      become: yes
-      become_user: root
       shell: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml >> metric_server_setup.txt
       args:
         chdir: $HOME
         creates: metric_server_setup.txt
 
     - name: disable Metric Server TLS
-      become: yes
-      become_user: root
       shell: "kubectl patch deployment metrics-server -n kube-system --type 'json' -p '[{\"op\": \"add\", \"path\": \"/spec/template/spec/containers/0/args/-\", \"value\": \"--kubelet-insecure-tls\"}]' >> disable_metric_server_tls.txt"
       args:
         chdir: $HOME
         creates: disable_metric_server_tls.txt
 
 - hosts: masters
-  become: yes
+  remote_user: normal
   gather_facts: false
+  environment:
+    http_proxy: http://proxy.example.net:3128
+    https_proxy: http://proxy.example.net:3128
   tasks:
     - name: get join command
       shell: kubeadm token create --print-join-command 
@@ -188,10 +214,13 @@
   
   
 - hosts: nodes
-  become: yes
+  remote_user: normal
+  environment:
+    http_proxy: http://proxy.example.net:3128
+    https_proxy: http://proxy.example.net:3128
   tasks:
     - name: join cluster
-      shell: "{{ hostvars['master'].join_command }} --ignore-preflight-errors all  >> node_joined.txt"
+      shell: "sudo -E {{ hostvars['master'].join_command }} --ignore-preflight-errors all  >> node_joined.txt"
       args:
         chdir: $HOME
         creates: node_joined.txt
